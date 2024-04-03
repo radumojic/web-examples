@@ -15,14 +15,13 @@ export const MultiversxChainData: ChainsMap = {
     slip44: 508,
     testnet: true,
   },
-  // Keep only one Test Chain visible
-  // T: {
-  //   id: "mvx:T",
-  //   name: "MultiversX Testnet",
-  //   rpc: ["https://testnet-api.multiversx.com"],
-  //   slip44: 508,
-  //   testnet: true,
-  // },
+  T: {
+    id: "mvx:T",
+    name: "MultiversX Testnet",
+    rpc: ["https://testnet-api.multiversx.com"],
+    slip44: 508,
+    testnet: true,
+  },
 };
 
 export const MultiversxMetadata: NamespaceMetadata = {

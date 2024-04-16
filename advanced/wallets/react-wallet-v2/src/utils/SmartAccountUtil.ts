@@ -1,4 +1,4 @@
-import { BiconomySmartAccountLib } from './../lib/smart-accounts/BiconomySmartAccountLib';
+import { BiconomySmartAccountLib } from './../lib/smart-accounts/BiconomySmartAccountLib'
 import { Hex } from 'viem'
 import { SessionTypes } from '@walletconnect/types'
 import { Chain, allowedChains } from '@/consts/smartAccounts'
@@ -67,6 +67,7 @@ export function supportedAddressPriority(
     const chainId = id.replace(`${nameSpaceKey}:`, '')
     return providedAllowedChains.map(chain => chain?.id.toString()).includes(chainId)
   })
+  if (allowedChainIds.length === 0) return []
   const chainIdParsed = allowedChainIds[0].replace(`${nameSpaceKey}:`, '')
   const chain = providedAllowedChains.find(chain => chain?.id.toString() === chainIdParsed)!
   if (allowedChainIds.length > 0 && smartAccountAddress) {
@@ -91,7 +92,7 @@ export function isAllowedKernelChain(chainId: number): boolean {
 }
 
 export async function createOrRestoreKernelSmartAccount(privateKey: string) {
-  const lib = new KernelSmartAccountLib({ privateKey, chain: sepolia })
+  const lib = new KernelSmartAccountLib({ privateKey, chain: sepolia, sponsored:true })
   await lib.init()
   const address = lib.getAddress()
   const key = `${sepolia.id}:${address}`
@@ -108,7 +109,7 @@ export function isAllowedSafeChain(chainId: number): boolean {
 }
 
 export async function createOrRestoreSafeSmartAccount(privateKey: string) {
-  const lib = new SafeSmartAccountLib({ privateKey, chain: sepolia })
+  const lib = new SafeSmartAccountLib({ privateKey, chain: sepolia, sponsored:true })
   await lib.init()
   const address = lib.getAddress()
   const key = `${sepolia.id}:${address}`
@@ -121,7 +122,7 @@ export async function createOrRestoreSafeSmartAccount(privateKey: string) {
 }
 
 export async function createOrRestoreBiconomySmartAccount(privateKey: string) {
-  const lib = new BiconomySmartAccountLib({ privateKey, chain: sepolia })
+  const lib = new BiconomySmartAccountLib({ privateKey, chain: sepolia, sponsored:true })
   await lib.init()
   const address = lib.getAddress()
   const key = `${sepolia.id}:${address}`

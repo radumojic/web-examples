@@ -59,10 +59,10 @@ export const DEFAULT_APP_METADATA = {
  * EIP5792
  */
 export const DEFAULT_EIP5792_METHODS = {
-  WALLET_GET_CAPABILITIES : "wallet_getCapabilities",
-  WALLET_SEND_CALLS : "wallet_sendCalls",
-  WALLET_GET_CALLS_STATUS : 'wallet_getCallsStatus'
-} as const
+  WALLET_GET_CAPABILITIES: "wallet_getCapabilities",
+  WALLET_SEND_CALLS: "wallet_sendCalls",
+  WALLET_GET_CALLS_STATUS: "wallet_getCallsStatus",
+} as const;
 
 export type SendCallsParams = {
   version: string;
@@ -77,7 +77,7 @@ export type SendCallsParams = {
 };
 
 // capability names as string literals
-export type CapabilityName = 'atomicBatch' | 'paymasterService' | 'sessionKey';
+export type CapabilityName = "atomicBatch" | "paymasterService" | "sessionKey";
 // Capability type where each key is a capability name and value has `supported` field
 export type Capabilities = {
   [K in CapabilityName]: {
@@ -88,7 +88,7 @@ export type Capabilities = {
 export type GetCapabilitiesResult = Record<string, Capabilities>;
 
 export type GetCallsResult = {
-  status: 'PENDING' | 'CONFIRMED';
+  status: "PENDING" | "CONFIRMED";
   receipts?: {
     logs: {
       address: `0x${string}`;
@@ -102,26 +102,72 @@ export type GetCallsResult = {
     transactionHash: `0x${string}`;
   }[];
 };
+/**
+ * EIP7715
+ */
+export const DEFAULT_EIP7715_METHODS = {
+  WALLET_GRANT_PERMISSIONS: "wallet_grantPermissions",
+} as const;
+export type WalletGrantPermissionsParameters = {
+  signer?:
+    | {
+        type: string;
+        data?: unknown | undefined;
+      }
+    | undefined;
+  permissions: readonly {
+    data: unknown;
+    policies: readonly {
+      data: unknown;
+      type: string;
+    }[];
+    required?: boolean | undefined;
+    type: string;
+  }[];
+  expiry: number;
+};
 
+export type WalletGrantPermissionsReturnType = {
+  expiry: number;
+  factory?: `0x${string}` | undefined;
+  factoryData?: string | undefined;
+  grantedPermissions: readonly {
+    data: unknown;
+    policies: readonly {
+      data: unknown;
+      type: string;
+    }[];
+    required?: boolean | undefined;
+    type: string;
+  }[];
+  permissionsContext: string;
+  signerData?:
+    | {
+        userOpBuilder?: `0x${string}` | undefined;
+        submitToAddress?: `0x${string}` | undefined;
+      }
+    | undefined;
+};
 /**
  * EIP155
  */
 export const DEFAULT_EIP155_METHODS = {
-  ETH_SEND_TRANSACTION : "eth_sendTransaction",
-  PERSONAL_SIGN : "personal_sign",
-}
+  ETH_SEND_TRANSACTION: "eth_sendTransaction",
+  PERSONAL_SIGN: "personal_sign",
+};
 
 export const DEFAULT_EIP155_OPTIONAL_METHODS = {
-  ETH_SIGN_TRANSACTION : "eth_signTransaction",
-  ETH_SIGN : "eth_sign",
-  ETH_SIGN_TYPED_DATA : "eth_signTypedData",
-  ETH_SIGN_TYPED_DATA_V4 : "eth_signTypedData_v4",
-} as const
+  ETH_SIGN_TRANSACTION: "eth_signTransaction",
+  ETH_SIGN: "eth_sign",
+  ETH_SIGN_TYPED_DATA: "eth_signTypedData",
+  ETH_SIGN_TYPED_DATA_V4: "eth_signTypedData_v4",
+} as const;
 
 export const DEFAULT_OPTIONAL_METHODS = {
-    ...DEFAULT_EIP155_OPTIONAL_METHODS ,
-    ...DEFAULT_EIP5792_METHODS
-  }
+  ...DEFAULT_EIP155_OPTIONAL_METHODS,
+  ...DEFAULT_EIP5792_METHODS,
+  ...DEFAULT_EIP7715_METHODS,
+};
 
 export enum DEFAULT_EIP_155_EVENTS {
   ETH_CHAIN_CHANGED = "chainChanged",

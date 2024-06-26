@@ -1,8 +1,25 @@
-import { Address, createPublicClient, Hex, http, PrivateKeyAccount, PublicClient } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
+import {
+  Address,
+  concat,
+  concatHex,
+  createPublicClient,
+  getTypesForEIP712Domain,
+  hashTypedData,
+  Hex,
+  http,
+  keccak256,
+  PrivateKeyAccount,
+  PublicClient,
+  toFunctionSelector,
+  Transport,
+  TypedDataDefinition,
+  validateTypedData,
+  zeroAddress
+} from 'viem'
+import { privateKeyToAccount, signMessage } from 'viem/accounts'
 import { EIP155Wallet } from '../EIP155Lib'
 import { JsonRpcProvider } from '@ethersproject/providers'
-import { KernelValidator } from '@zerodev/ecdsa-validator'
+import { KernelValidator, signerToEcdsaValidator } from '@zerodev/ecdsa-validator'
 import {
   addressToEmptyAccount,
   createKernelAccount,
@@ -12,18 +29,35 @@ import {
 } from '@zerodev/sdk'
 import { sepolia } from 'viem/chains'
 import { serializeSessionKeyAccount, signerToSessionKeyValidator } from '@zerodev/session-key'
+import { getUpdateConfigCall } from '@zerodev/weighted-ecdsa-validator'
 import {
-  createWeightedECDSAValidator,
-  getUpdateConfigCall
-} from '@zerodev/weighted-ecdsa-validator'
-import { BundlerActions, bundlerActions, BundlerClient } from 'permissionless'
+  BundlerActions,
+  bundlerActions,
+  BundlerClient,
+  ENTRYPOINT_ADDRESS_V06,
+  ENTRYPOINT_ADDRESS_V07
+} from 'permissionless'
 import { Chain } from '@/consts/smartAccounts'
 import { EntryPoint } from 'permissionless/types/entrypoint'
+import {
+  PERMISSION_VALIDATOR_ADDRESS,
+  SECP256K1_SIGNATURE_VALIDATOR_ADDRESS
+} from '@/utils/permissionValidatorUtils/constants'
+import { executeAbi } from '@/utils/safe7579AccountUtils/abis/Account'
+import { ENTRYPOINT_ADDRESS_V07_TYPE } from 'permissionless/_types/types'
+import {
+  getPermissionScopeData,
+  PermissionContext,
+  SingleSignerPermission
+} from '@/utils/permissionValidatorUtils'
+import { KERNEL_V2_4, KERNEL_V3_1 } from '@zerodev/sdk/constants'
+import { KERNEL_V2_VERSION_TYPE, KERNEL_V3_VERSION_TYPE } from '@zerodev/sdk/types'
 
 type SmartAccountLibOptions = {
   privateKey: string
   chain: Chain
   sponsored?: boolean
+  entryPointVersion?: number
 }
 
 export class KernelSmartAccountLib implements EIP155Wallet {
@@ -31,20 +65,35 @@ export class KernelSmartAccountLib implements EIP155Wallet {
   public isDeployed: boolean = false
   public address?: `0x${string}`
   public sponsored: boolean = true
+  public entryPoint: EntryPoint
+  public kernelVersion: KERNEL_V3_VERSION_TYPE | KERNEL_V2_VERSION_TYPE
   private signer: PrivateKeyAccount
-  private client: KernelAccountClient | undefined
-  private publicClient: (PublicClient & BundlerClient<EntryPoint> & BundlerActions<EntryPoint>) | undefined
-  private validator: KernelValidator | undefined
+  private client: KernelAccountClient<EntryPoint, Transport, Chain | undefined> | undefined
+  private publicClient:
+    | (PublicClient & BundlerClient<EntryPoint> & BundlerActions<EntryPoint>)
+    | undefined
+  private validator: KernelValidator<EntryPoint> | undefined
   public initialized = false
 
   #signerPrivateKey: string
   public type: string = 'Kernel'
 
-  public constructor({ privateKey, chain, sponsored = false }: SmartAccountLibOptions) {
+  public constructor({
+    privateKey,
+    chain,
+    sponsored = false,
+    entryPointVersion = 7
+  }: SmartAccountLibOptions) {
     this.chain = chain
     this.sponsored = sponsored
     this.#signerPrivateKey = privateKey
     this.signer = privateKeyToAccount(privateKey as Hex)
+    this.entryPoint = ENTRYPOINT_ADDRESS_V07
+    this.kernelVersion = KERNEL_V3_1
+    if (entryPointVersion === 6) {
+      this.entryPoint = ENTRYPOINT_ADDRESS_V06
+      this.kernelVersion = KERNEL_V2_4
+    }
   }
   async init() {
     const projectId = process.env.NEXT_PUBLIC_ZERODEV_PROJECT_ID
@@ -54,37 +103,41 @@ export class KernelSmartAccountLib implements EIP155Wallet {
     const bundlerRpc = http(`https://rpc.zerodev.app/api/v2/bundler/${projectId}`)
     this.publicClient = createPublicClient({
       transport: bundlerRpc // use your RPC provider or bundler
-      //@ts-ignore
-    }).extend(bundlerActions)
+    }).extend(bundlerActions(this.entryPoint))
 
-    this.validator = await createWeightedECDSAValidator(this.publicClient, {
-      config: {
-        threshold: 100,
-        signers: [{ address: this.signer.address, weight: 100 }]
-      },
-      signers: [this.signer]
+    this.validator = await signerToEcdsaValidator(this.publicClient, {
+      signer: this.signer,
+      entryPoint: this.entryPoint,
+      kernelVersion: this.kernelVersion
     })
 
     const account = await createKernelAccount(this.publicClient, {
       plugins: {
         sudo: this.validator
-      }
+      },
+      entryPoint: this.entryPoint,
+      kernelVersion: this.kernelVersion
     })
     const client = createKernelAccountClient({
       account,
       chain: sepolia,
-      transport: bundlerRpc,
-      sponsorUserOperation: async ({ userOperation }) => {
-        const zerodevPaymaster = createZeroDevPaymasterClient({
-          chain: sepolia,
-          transport: http(`https://rpc.zerodev.app/api/v2/paymaster/${projectId}`)
-        })
-        return zerodevPaymaster.sponsorUserOperation({
-          userOperation
-        })
+      entryPoint: this.entryPoint,
+      bundlerTransport: bundlerRpc,
+      middleware: {
+        sponsorUserOperation: async ({ userOperation }) => {
+          const zerodevPaymaster = createZeroDevPaymasterClient({
+            chain: sepolia,
+            entryPoint: this.entryPoint,
+            // Get this RPC from ZeroDev dashboard
+            transport: http(`https://rpc.zerodev.app/api/v2/paymaster/${projectId}`)
+          })
+          return zerodevPaymaster.sponsorUserOperation({
+            userOperation,
+            entryPoint: this.entryPoint
+          })
+        }
       }
-      //@ts-ignore
-    }).extend(bundlerActions)
+    }).extend(bundlerActions(this.entryPoint))
     this.client = client
     console.log('Smart account initialized', {
       address: account.address,
@@ -146,7 +199,7 @@ export class KernelSmartAccountLib implements EIP155Wallet {
     const signature = await this.client.account.signTransaction(transaction)
     return signature || ''
   }
-  async sendTransaction({ to, value, data }: { to: Address; value: bigint; data: Hex }) {
+  async sendTransaction({ to, value, data }: { to: Address; value: bigint | Hex; data: Hex }) {
     console.log('Sending transaction from smart account', { to, value, data })
     if (!this.client || !this.client.account) {
       throw new Error('Client not initialized')
@@ -154,8 +207,8 @@ export class KernelSmartAccountLib implements EIP155Wallet {
 
     const txResult = await this.client.sendTransaction({
       to,
-      value,
-      data,
+      value: BigInt(value),
+      data: data || '0x',
       account: this.client.account,
       chain: this.chain
     })
@@ -163,32 +216,34 @@ export class KernelSmartAccountLib implements EIP155Wallet {
 
     return txResult
   }
-  async sendBatchTransaction(args:{
-    to: Address;
-    value: bigint;
-    data: Hex;
-  }[]) {
+  async sendBatchTransaction(
+    args: {
+      to: Address
+      value: bigint
+      data: Hex
+    }[]
+  ) {
     console.log('Sending transaction from smart account', { type: this.type, args })
     if (!this.client || !this.client.account) {
-    throw new Error('Client not initialized')
+      throw new Error('Client not initialized')
     }
     const userOp = await this.client.prepareUserOperationRequest({
-    userOperation: {
-      callData: await this.client.account.encodeCallData(args)
-    },
-    account: this.client.account
+      userOperation: {
+        callData: await this.client.account.encodeCallData(args)
+      },
+      account: this.client.account
     })
 
     const newSignature = await this.client.account.signUserOperation(userOp)
-    console.log('Signatures',{old: userOp.signature, new: newSignature});
+    console.log('Signatures', { old: userOp.signature, new: newSignature })
 
     userOp.signature = newSignature
 
     const userOpHash = await this.client.sendUserOperation({
-    userOperation: userOp,
-    account: this.client.account
+      userOperation: userOp,
+      account: this.client.account
     })
-    return userOpHash;
+    return userOpHash
   }
 
   async issueSessionKey(address: `0x${string}`, permissions: string): Promise<string> {
@@ -202,18 +257,22 @@ export class KernelSmartAccountLib implements EIP155Wallet {
     const sessionKeyAddress = address
     console.log('Issuing new session key', { sessionKeyAddress })
     const emptySessionKeySigner = addressToEmptyAccount(sessionKeyAddress)
-
+    console.log(parsedPermissions)
     const sessionKeyValidator = await signerToSessionKeyValidator(this.publicClient, {
       signer: emptySessionKeySigner,
       validatorData: {
         permissions: parsedPermissions
-      }
+      },
+      kernelVersion: this.kernelVersion,
+      entryPoint: this.entryPoint
     })
     const sessionKeyAccount = await createKernelAccount(this.publicClient, {
       plugins: {
         sudo: this.validator,
         regular: sessionKeyValidator
-      }
+      },
+      entryPoint: this.entryPoint,
+      kernelVersion: this.kernelVersion
     })
     console.log('Session key account initialized', { address: sessionKeyAccount.address })
     const serializedSessionKey = await serializeSessionKeyAccount(sessionKeyAccount)
@@ -238,11 +297,140 @@ export class KernelSmartAccountLib implements EIP155Wallet {
     const newSigners = [{ address: currentAddress, weight: 100 }, ...coSigners]
     console.log('Updating account Co-Signers', { newSigners })
 
-    const updateCall = getUpdateConfigCall({
+    const updateCall = getUpdateConfigCall(this.entryPoint, this.kernelVersion, {
       threshold: 100,
       signers: newSigners
     })
 
     await this.sendTransaction(updateCall)
+  }
+
+  async getCurrentNonce() {
+    if (!this.client || !this.client.account) {
+      throw new Error('Client not initialized')
+    }
+    const currentNonce = await this.publicClient!.readContract({
+      address: this.client.account.address,
+      abi: [
+        {
+          type: 'function',
+          name: 'currentNonce',
+          inputs: [],
+          outputs: [{ name: '', type: 'uint32', internalType: 'uint32' }],
+          stateMutability: 'view'
+        }
+      ],
+      functionName: 'currentNonce',
+      args: [],
+      factory: undefined,
+      factoryData: undefined
+    })
+    console.log(`currentNonce : ${currentNonce}`)
+    return currentNonce
+  }
+
+  async issuePermissionContext(
+    targetAddress: Address,
+    approvedPermissions: any
+  ): Promise<PermissionContext> {
+    if (!this.client || !this.client.account) {
+      throw new Error('Client not initialized')
+    }
+    // this permission have dummy policy set to zeroAddress for now,
+    // bc current version of PermissionValidator_v1 module don't consider checking policy
+    const permissions: SingleSignerPermission[] = [
+      {
+        validUntil: 0,
+        validAfter: 0,
+        signatureValidationAlgorithm: SECP256K1_SIGNATURE_VALIDATOR_ADDRESS,
+        signer: targetAddress,
+        policy: zeroAddress,
+        policyData: '0x'
+      }
+    ]
+
+    const permittedScopeData = getPermissionScopeData(permissions, this.chain)
+    // the smart account sign over the permittedScope and targetAddress
+    const permittedScopeSignature: Hex = await signMessage({
+      privateKey: this.getPrivateKey() as `0x${string}`,
+      message: { raw: concatHex([keccak256(permittedScopeData), targetAddress]) }
+    })
+
+    const nonce = await this.getCurrentNonce()
+    const validatorAddress = PERMISSION_VALIDATOR_ADDRESS
+    const validatorInitData = '0x'
+    const hookAddress = zeroAddress
+    const hookData = '0x'
+    const selectorData = toFunctionSelector(executeAbi[0])
+
+    const validatorPluginEnableTypeData = {
+      domain: {
+        name: 'Kernel',
+        version: '0.3.0-beta',
+        chainId: this.chain.id,
+        verifyingContract: this.client.account.address
+      },
+      types: {
+        Enable: [
+          { name: 'validationId', type: 'bytes21' },
+          { name: 'nonce', type: 'uint32' },
+          { name: 'hook', type: 'address' },
+          { name: 'validatorData', type: 'bytes' },
+          { name: 'hookData', type: 'bytes' },
+          { name: 'selectorData', type: 'bytes' }
+        ]
+      },
+      message: {
+        validationId: concat([
+          '0x01', // indicate secondary type
+          validatorAddress
+        ]),
+        nonce: nonce,
+        hook: hookAddress,
+        validatorData: validatorInitData as `0x${string}`,
+        hookData: hookData as `0x${string}`,
+        selectorData: selectorData
+      },
+      primaryType: 'Enable' as 'Enable'
+    }
+
+    const types = {
+      EIP712Domain: getTypesForEIP712Domain({
+        domain: validatorPluginEnableTypeData.domain
+      }),
+      ...validatorPluginEnableTypeData.types
+    }
+
+    // Need to do a runtime validation check on addresses, byte ranges, integer ranges, etc
+    // as we can't statically check this with TypeScript.
+    validateTypedData({
+      domain: validatorPluginEnableTypeData.domain,
+      message: validatorPluginEnableTypeData.message,
+      primaryType: validatorPluginEnableTypeData.primaryType,
+      types: types
+    } as TypedDataDefinition)
+
+    const typedHash = hashTypedData(validatorPluginEnableTypeData)
+
+    let enableSig = await this.validator!.signMessage({
+      message: { raw: typedHash }
+    })
+
+    return {
+      accountType: 'KernelV3',
+      accountAddress: this.client.account.address,
+      permissionValidatorAddress: validatorAddress,
+      permissions: permissions,
+      permittedScopeData: permittedScopeData,
+      permittedScopeSignature: permittedScopeSignature,
+      enableSig: enableSig
+    }
+  }
+
+  getAccount() {
+    if (!this.client?.account) {
+      throw new Error('Client not initialized')
+    }
+    return this.client.account
   }
 }

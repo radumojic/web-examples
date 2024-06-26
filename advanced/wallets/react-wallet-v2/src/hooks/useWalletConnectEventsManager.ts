@@ -1,7 +1,7 @@
 import { Web3WalletTypes } from '@walletconnect/web3wallet'
 import { COSMOS_SIGNING_METHODS } from '@/data/COSMOSData'
-import { EIP155_SIGNING_METHODS }from '@/data/EIP155Data'
-import { EIP5792_METHODS, } from '@/data/EIP5792Data'
+import { EIP155_SIGNING_METHODS } from '@/data/EIP155Data'
+import { EIP5792_METHODS } from '@/data/EIP5792Data'
 import { SOLANA_SIGNING_METHODS } from '@/data/SolanaData'
 import { POLKADOT_SIGNING_METHODS } from '@/data/PolkadotData'
 import { MULTIVERSX_SIGNING_METHODS } from '@/data/MultiversxData'
@@ -15,10 +15,11 @@ import { NEAR_SIGNING_METHODS } from '@/data/NEARData'
 import { approveNearRequest } from '@/utils/NearRequestHandlerUtil'
 import { TEZOS_SIGNING_METHODS } from '@/data/TezosData'
 import { KADENA_SIGNING_METHODS } from '@/data/KadenaData'
-import { formatJsonRpcError, } from '@json-rpc-tools/utils'
+import { formatJsonRpcError } from '@json-rpc-tools/utils'
 import { approveEIP5792Request } from '@/utils/EIP5792RequestHandlerUtils'
 import EIP155Lib from '@/lib/EIP155Lib'
 import { getWallet } from '@/utils/EIP155WalletUtil'
+import { EIP7715_METHOD } from '@/data/EIP7715Data'
 
 export default function useWalletConnectEventsManager(initialized: boolean) {
   /******************************************************************************
@@ -63,7 +64,12 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
         case EIP155_SIGNING_METHODS.ETH_SEND_TRANSACTION:
         case EIP155_SIGNING_METHODS.ETH_SIGN_TRANSACTION:
           return ModalStore.open('SessionSendTransactionModal', { requestEvent, requestSession })
-        
+
+        case EIP7715_METHOD.WALLET_GRANT_PERMISSIONS: {
+          console.log({ request })
+          return ModalStore.open('SessionGrantPermissionsModal', { requestEvent, requestSession })
+        }
+
         case EIP5792_METHODS.WALLET_GET_CAPABILITIES:
         case EIP5792_METHODS.WALLET_GET_CALLS_STATUS:
           return await web3wallet.respondSessionRequest({
@@ -76,15 +82,15 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
             topic,
             response: formatJsonRpcError(id, "Wallet currently don't show call status.")
           })
-        
-        case EIP5792_METHODS.WALLET_SEND_CALLS:{
+
+        case EIP5792_METHODS.WALLET_SEND_CALLS: {
           const wallet = await getWallet(params)
-          if(wallet instanceof EIP155Lib){
+          if (wallet instanceof EIP155Lib) {
             /**
-            * Not Supporting for batch calls on EOA for now.
-            * if EOA, we can submit call one by one, but need to have a data structure
-            * to return bundle id, for all the calls, 
-            */
+             * Not Supporting for batch calls on EOA for now.
+             * if EOA, we can submit call one by one, but need to have a data structure
+             * to return bundle id, for all the calls,
+             */
             return await web3wallet.respondSessionRequest({
               topic,
               response: formatJsonRpcError(id, "Wallet currently don't support batch call for EOA")
@@ -92,7 +98,7 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
           }
           return ModalStore.open('SessionSendCallsModal', { requestEvent, requestSession })
         }
-        
+
         case COSMOS_SIGNING_METHODS.COSMOS_SIGN_DIRECT:
         case COSMOS_SIGNING_METHODS.COSMOS_SIGN_AMINO:
           return ModalStore.open('SessionSignCosmosModal', { requestEvent, requestSession })
@@ -147,6 +153,13 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
     []
   )
 
+  const onSessionAuthenticate = useCallback(
+    (authRequest: SignClientTypes.EventArguments['session_authenticate']) => {
+      ModalStore.open('SessionAuthenticateModal', { authRequest })
+    },
+    []
+  )
+
   /******************************************************************************
    * Set up WalletConnect event listeners
    *****************************************************************************/
@@ -163,6 +176,7 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
         console.log('session_delete event received', data)
         SettingsStore.setSessions(Object.values(web3wallet.getActiveSessions()))
       })
+      web3wallet.on('session_authenticate', onSessionAuthenticate)
       // load sessions on init
       SettingsStore.setSessions(Object.values(web3wallet.getActiveSessions()))
     }

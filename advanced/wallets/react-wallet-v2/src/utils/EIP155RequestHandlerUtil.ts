@@ -1,9 +1,6 @@
 import { EIP155_CHAINS, EIP155_SIGNING_METHODS, TEIP155Chain } from '@/data/EIP155Data'
 import { getWallet } from '@/utils/EIP155WalletUtil'
-import {
-  getSignParamsMessage,
-  getSignTypedDataParamsData,
-} from '@/utils/HelperUtil'
+import { getSignParamsMessage, getSignTypedDataParamsData } from '@/utils/HelperUtil'
 import { formatJsonRpcError, formatJsonRpcResult } from '@json-rpc-tools/utils'
 import { SignClientTypes } from '@walletconnect/types'
 import { getSdkError } from '@walletconnect/utils'
@@ -47,8 +44,11 @@ export async function approveEIP155Request(requestEvent: RequestEventArgs) {
 
         // intercept for smart account getPermissions mock
         if (domain.name === 'eth_getPermissions_v1' && wallet instanceof KernelSmartAccountLib) {
-          const sessionKey = await wallet.issueSessionKey(data.targetAddress, data.permissions)
-          return formatJsonRpcResult(id, sessionKey)
+          const permissionContext = await wallet.issueSessionKey(
+            data.targetAddress,
+            data.permissions
+          )
+          return formatJsonRpcResult(id, permissionContext)
         }
 
         // https://github.com/ethers-io/ethers.js/issues/687#issuecomment-714069471

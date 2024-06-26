@@ -16,7 +16,7 @@ import { nearAddresses } from '@/utils/NearWalletUtil'
 import { kadenaAddresses } from '@/utils/KadenaWalletUtil'
 import { styledToast } from '@/utils/HelperUtil'
 import { web3wallet } from '@/utils/WalletConnectUtil'
-import { EIP155_CHAINS, EIP155_SIGNING_METHODS} from '@/data/EIP155Data'
+import { EIP155_CHAINS, EIP155_SIGNING_METHODS } from '@/data/EIP155Data'
 import { COSMOS_MAINNET_CHAINS, COSMOS_SIGNING_METHODS } from '@/data/COSMOSData'
 import { KADENA_CHAINS, KADENA_SIGNING_METHODS } from '@/data/KadenaData'
 import { MULTIVERSX_CHAINS, MULTIVERSX_SIGNING_METHODS } from '@/data/MultiversxData'
@@ -35,6 +35,8 @@ import SettingsStore from '@/store/SettingsStore'
 import usePriorityAccounts from '@/hooks/usePriorityAccounts'
 import useSmartAccounts from '@/hooks/useSmartAccounts'
 import { EIP5792_METHODS } from '@/data/EIP5792Data'
+import { getWalletCapabilities } from '@/utils/EIP5792WalletUtil'
+import { EIP7715_METHOD } from '@/data/EIP7715Data'
 
 const StyledText = styled(Text, {
   fontWeight: 400
@@ -61,6 +63,10 @@ export default function SessionProposalModal() {
     //eip5792
     const eip5792Chains = Object.keys(EIP155_CHAINS)
     const eip5792Methods = Object.values(EIP5792_METHODS)
+
+    //eip7715
+    const eip7715Chains = Object.keys(EIP155_CHAINS)
+    const eip7715Methods = Object.values(EIP7715_METHOD)
 
     // cosmos
     const cosmosChains = Object.keys(COSMOS_MAINNET_CHAINS)
@@ -97,7 +103,7 @@ export default function SessionProposalModal() {
     return {
       eip155: {
         chains: eip155Chains,
-        methods: eip155Methods.concat(eip5792Methods),
+        methods: eip155Methods.concat(eip5792Methods).concat(eip7715Methods),
         events: ['accountsChanged', 'chainChanged'],
         accounts: eip155Chains.map(chain => `${chain}:${eip155Addresses[0]}`).flat()
       },
@@ -253,12 +259,17 @@ export default function SessionProposalModal() {
       setIsLoadingApprove(true)
       try {
         if (reorderedEip155Accounts.length > 0) {
-          namespaces.eip155.accounts = reorderedEip155Accounts
+          // we should append the smart accounts to the available eip155 accounts
+          namespaces.eip155.accounts = reorderedEip155Accounts.concat(namespaces.eip155.accounts)
         }
+        //get capabilities for all reorderedEip155Accounts in wallet
+        const capabilities = getWalletCapabilities(reorderedEip155Accounts)
+        const sessionProperties = { capabilities: JSON.stringify(capabilities) }
 
         await web3wallet.approveSession({
           id: proposal.id,
-          namespaces
+          namespaces,
+          sessionProperties
         })
         SettingsStore.setSessions(Object.values(web3wallet.getActiveSessions()))
       } catch (e) {
@@ -329,7 +340,7 @@ export default function SessionProposalModal() {
       <Grid.Container style={{ marginBottom: '10px', marginTop: '10px' }} justify={'space-between'}>
         <Grid>
           <Row style={{ color: 'GrayText' }}>Accounts</Row>
-          {(supportedChains.length > 1 &&
+          {(supportedChains.length > 0 &&
             supportedChains.map((chain, i) => {
               return (
                 <Row key={i}>
@@ -355,7 +366,7 @@ export default function SessionProposalModal() {
           <Row style={{ color: 'GrayText' }} justify="flex-end">
             Chains
           </Row>
-          {(supportedChains.length > 1 &&
+          {(supportedChains.length > 0 &&
             supportedChains.map((chain, i) => {
               if (!chain) {
                 return <></>

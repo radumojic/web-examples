@@ -28,8 +28,7 @@ export default function SettingsPage() {
     kernelSmartAccountEnabled,
     safeSmartAccountEnabled,
     biconomySmartAccountEnabled,
-    moduleManagementEnabled,
-    localAAInfraEnabled
+    moduleManagementEnabled
   } = useSnapshot(SettingsStore.state)
 
   return (
@@ -40,7 +39,7 @@ export default function SettingsPage() {
         Packages
       </Text>
       <Row justify="space-between" align="center">
-        <Text color="$gray400">@walletconnect/sign-client</Text>
+        <Text color="$gray400">@walletconnect/web3wallet</Text>
         <Text color="$gray400">{packageJSON.dependencies['@walletconnect/web3wallet']}</Text>
       </Row>
 
@@ -141,23 +140,6 @@ export default function SettingsPage() {
                       data-testid="settings-toggle-module-management"
                     />
                     <Text>{moduleManagementEnabled ? 'Enabled' : 'Disabled'}</Text>
-                  </Row>
-                  <Divider y={2} />
-                  <Text h4 css={{ marginBottom: '$5', cursor: 'pointer' }}>
-                    Local AA Infra
-                  </Text>
-                  <Row justify="space-between" align="center">
-                    <Switch
-                      disabled={
-                        !kernelSmartAccountEnabled &&
-                        !safeSmartAccountEnabled &&
-                        !biconomySmartAccountEnabled
-                      }
-                      checked={localAAInfraEnabled}
-                      onChange={SettingsStore.toggleLocalAAInfra}
-                      data-testid="settings-toggle-local-aa-infra"
-                    />
-                    <Text>{localAAInfraEnabled ? 'Enabled' : 'Disabled'}</Text>
                   </Row>
                 </>
               ) : null}

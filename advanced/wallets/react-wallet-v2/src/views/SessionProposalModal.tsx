@@ -15,7 +15,7 @@ import { solanaAddresses } from '@/utils/SolanaWalletUtil'
 import { nearAddresses } from '@/utils/NearWalletUtil'
 import { kadenaAddresses } from '@/utils/KadenaWalletUtil'
 import { styledToast } from '@/utils/HelperUtil'
-import { web3wallet } from '@/utils/WalletConnectUtil'
+import { walletkit } from '@/utils/WalletConnectUtil'
 import { EIP155_CHAINS, EIP155_SIGNING_METHODS } from '@/data/EIP155Data'
 import { COSMOS_MAINNET_CHAINS, COSMOS_SIGNING_METHODS } from '@/data/COSMOSData'
 import { KADENA_CHAINS, KADENA_SIGNING_METHODS } from '@/data/KadenaData'
@@ -36,6 +36,13 @@ import usePriorityAccounts from '@/hooks/usePriorityAccounts'
 import useSmartAccounts from '@/hooks/useSmartAccounts'
 import { EIP5792_METHODS } from '@/data/EIP5792Data'
 import { getWalletCapabilities } from '@/utils/EIP5792WalletUtil'
+import { bip122Addresses, bip122Wallet } from '@/utils/Bip122WalletUtil'
+import {
+  BIP122_CHAINS,
+  BIP122_EVENTS,
+  BIP122_SIGNING_METHODS,
+  IBip122ChainId
+} from '@/data/Bip122Data'
 import { EIP7715_METHOD } from '@/data/EIP7715Data'
 import { useRouter } from 'next/router'
 
@@ -104,6 +111,11 @@ export default function SessionProposalModal() {
     // tron
     const tronChains = Object.keys(TRON_CHAINS)
     const tronMethods = Object.values(TRON_SIGNING_METHODS)
+
+    // bip122
+    const bip122Chains = Object.keys(BIP122_CHAINS)
+    const bip122Methods = Object.values(BIP122_SIGNING_METHODS)
+    const bip122Events = Object.values(BIP122_EVENTS)
 
     return {
       eip155: {
@@ -181,9 +193,15 @@ export default function SessionProposalModal() {
         accounts: tronChains
           .map(chain => tronAddresses.map(address => `${chain}:${address}`))
           .flat()
+      },
+      bip122: {
+        chains: bip122Chains,
+        methods: bip122Methods,
+        events: bip122Events,
+        accounts: bip122Addresses
       }
     }
-  }, [])
+  }, [addressesToApprove])
   console.log('supportedNamespaces', supportedNamespaces, eip155Addresses)
 
   const requestedChains = useMemo(() => {
@@ -238,6 +256,7 @@ export default function SessionProposalModal() {
   }, [proposal, supportedChains])
   console.log('notSupportedChains', { notSupportedChains, supportedChains })
   const getAddress = useCallback((namespace?: string) => {
+    console.log('getAddress', namespace)
     if (!namespace) return 'N/A'
     switch (namespace) {
       case 'eip155':
@@ -258,6 +277,8 @@ export default function SessionProposalModal() {
         return tezosAddresses[0]
       case 'tron':
         return tronAddresses[0]
+      case 'bip122':
+        return bip122Addresses[0]
     }
   }, [])
 
@@ -268,7 +289,9 @@ export default function SessionProposalModal() {
         proposal: proposal.params,
         supportedNamespaces
       })
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error building approved namespaces', e)
+    }
   }, [proposal.params, supportedNamespaces])
 
   const reorderedEip155Accounts = usePriorityAccounts({ namespaces })
@@ -276,6 +299,7 @@ export default function SessionProposalModal() {
 
   // Hanlde approve action, construct session namespace
   const onApprove = useCallback(async () => {
+    console.log('onApprove', { proposal, namespaces })
     try {
       if (proposal && namespaces) {
         setIsLoadingApprove(true)
@@ -285,14 +309,25 @@ export default function SessionProposalModal() {
         }
         //get capabilities for all reorderedEip155Accounts in wallet
         const capabilities = getWalletCapabilities(reorderedEip155Accounts)
-        const sessionProperties = { capabilities: JSON.stringify(capabilities) }
-
-        await web3wallet.approveSession({
+        let sessionProperties = {
+          capabilities: JSON.stringify(capabilities)
+        } as any
+        if (namespaces.bip122) {
+          const bip122Chain = namespaces.bip122.chains?.[0]!
+          sessionProperties.bip122_getAccountAddresses = JSON.stringify({
+            payment: Array.from(bip122Wallet.getAddresses(bip122Chain as IBip122ChainId).values()),
+            ordinal: Array.from(
+              bip122Wallet.getAddresses(bip122Chain as IBip122ChainId, ['ordinal']).values()
+            )
+          })
+        }
+        console.log('sessionProperties', sessionProperties)
+        await walletkit.approveSession({
           id: proposal.id,
           namespaces,
           sessionProperties
         })
-        SettingsStore.setSessions(Object.values(web3wallet.getActiveSessions()))
+        SettingsStore.setSessions(Object.values(walletkit.getActiveSessions()))
       }
     } catch (e) {
       styledToast((e as Error).message, 'error')
@@ -309,7 +344,7 @@ export default function SessionProposalModal() {
       try {
         setIsLoadingReject(true)
         await new Promise(resolve => setTimeout(resolve, 1000))
-        await web3wallet.rejectSession({
+        await walletkit.rejectSession({
           id: proposal.id,
           reason: getSdkError('USER_REJECTED_METHODS')
         })
@@ -323,6 +358,7 @@ export default function SessionProposalModal() {
     ModalStore.close()
   }, [proposal])
   console.log('notSupportedChains', notSupportedChains)
+  console.log('supportedChains', supportedChains)
   return (
     <RequestModal
       metadata={proposal.params.proposer.metadata}
@@ -372,7 +408,7 @@ export default function SessionProposalModal() {
           <Row style={{ color: 'GrayText' }}>Smart Accounts</Row>
           {smartAccountEnabled &&
             namespaces &&
-            getAvailableSmartAccountsOnNamespaceChains(namespaces.eip155.chains).map(
+            getAvailableSmartAccountsOnNamespaceChains(namespaces?.eip155?.chains).map(
               (account, i) => {
                 if (!account) {
                   return <></>
@@ -391,6 +427,7 @@ export default function SessionProposalModal() {
           </Row>
           {(supportedChains.length > 0 &&
             supportedChains.map((chain, i) => {
+              console.log('chain', chain)
               if (!chain) {
                 return <></>
               }
@@ -406,7 +443,7 @@ export default function SessionProposalModal() {
           </Row>
           {smartAccountEnabled &&
             namespaces &&
-            getAvailableSmartAccountsOnNamespaceChains(namespaces.eip155.chains).map(
+            getAvailableSmartAccountsOnNamespaceChains(namespaces?.eip155?.chains).map(
               ({ chain }, i) => {
                 if (!chain) {
                   return <></>

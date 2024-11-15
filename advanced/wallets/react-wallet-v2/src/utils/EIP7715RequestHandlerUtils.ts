@@ -2,13 +2,13 @@ import { formatJsonRpcError, formatJsonRpcResult } from '@json-rpc-tools/utils'
 import { SessionTypes, SignClientTypes } from '@walletconnect/types'
 import { getSdkError } from '@walletconnect/utils'
 import SettingsStore from '@/store/SettingsStore'
+import { EIP7715_METHOD } from '@/data/EIP7715Data'
 import {
-  EIP7715_METHOD,
-  WalletGrantPermissionsRequest,
+  SmartSessionGrantPermissionsRequest,
   WalletGrantPermissionsResponse
-} from '@/data/EIP7715Data'
+} from '@reown/appkit-experimental/smart-session'
 import { SafeSmartAccountLib } from '@/lib/smart-accounts/SafeSmartAccountLib'
-import { web3wallet } from './WalletConnectUtil'
+import { walletkit } from './WalletConnectUtil'
 import { smartAccountWallets } from './SmartAccountUtil'
 import { KernelSmartAccountLib } from '@/lib/smart-accounts/KernelSmartAccountLib'
 type RequestEventArgs = Omit<SignClientTypes.EventArguments['session_request'], 'verifyContext'>
@@ -43,13 +43,13 @@ function getSmartAccountLibFromSession(requestSession: SessionTypes.Struct, chai
 
 export async function approveEIP7715Request(requestEvent: RequestEventArgs) {
   const { params, id, topic } = requestEvent
-  const requestSession = web3wallet.engine.signClient.session.get(topic)
+  const requestSession = walletkit.engine.signClient.session.get(topic)
   const { chainId, request } = params
   SettingsStore.setActiveChainId(chainId)
   switch (request.method) {
     case EIP7715_METHOD.WALLET_GRANT_PERMISSIONS: {
       const wallet = getSmartAccountLibFromSession(requestSession, chainId)
-      let grantPermissionsRequestParams: WalletGrantPermissionsRequest = request.params[0]
+      let grantPermissionsRequestParams: SmartSessionGrantPermissionsRequest = request.params[0]
       if (
         wallet instanceof SafeSmartAccountLib
         //TODO:fix kernel grantPermissions

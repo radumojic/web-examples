@@ -48,6 +48,10 @@ export async function approveMultiversxRequest(
       // It is used to transmit that the user wishes to renounce on a triggered action.
       // Close a Sign Transaction modal or a Sign Message modal, etc.
       return formatJsonRpcError(id, getSdkError('USER_REJECTED_METHODS').message)
+    
+    case MULTIVERSX_SIGNING_METHODS.MULTIVERSX_LAUNCHPAD_JOIN:    
+      // Enable Ccheck
+      return formatJsonRpcError(id, getSdkError('USER_REJECTED_METHODS').message)
 
     default:
       throw new Error(getSdkError('UNSUPPORTED_METHODS').message)

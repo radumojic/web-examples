@@ -146,6 +146,7 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
         case MULTIVERSX_SIGNING_METHODS.MULTIVERSX_SIGN_LOGIN_TOKEN:
         case MULTIVERSX_SIGNING_METHODS.MULTIVERSX_SIGN_NATIVE_AUTH_TOKEN:
         case MULTIVERSX_SIGNING_METHODS.MULTIVERSX_CANCEL_ACTION:
+        case MULTIVERSX_SIGNING_METHODS.MULTIVERSX_LAUNCHPAD_JOIN:
           return ModalStore.open('SessionSignMultiversxModal', { requestEvent, requestSession })
 
         case NEAR_SIGNING_METHODS.NEAR_GET_ACCOUNTS:

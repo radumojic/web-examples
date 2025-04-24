@@ -1,6 +1,5 @@
 import { SessionTypes, SignClientTypes } from '@walletconnect/types'
-import { WalletKitTypes } from '@reown/walletkit'
-import { proxy } from 'valtio'
+import { proxy, subscribe } from 'valtio'
 
 /**
  * Types
@@ -36,6 +35,7 @@ interface State {
     | 'SessionSignBip122Modal'
     | 'SessionGetBip122AddressesModal'
     | 'SessionSendTransactionBip122Modal'
+    | 'SessionCheckoutModal'
   data?: ModalData
 }
 
@@ -52,10 +52,18 @@ const state = proxy<State>({
 const ModalStore = {
   state,
 
-  open(view: State['view'], data: State['data']) {
+  open(view: State['view'], data: State['data'], onClose?: () => void) {
     state.view = view
     state.data = data
     state.open = true
+    if (!onClose) return
+    const unsubscribe = subscribe(state, () => {
+      if (!state.open) {
+        console.log('ModalStore: Closing modal')
+        unsubscribe()
+        onClose?.()
+      }
+    })
   },
 
   close() {

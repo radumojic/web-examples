@@ -21,6 +21,10 @@ import { getWallet } from '@/utils/EIP155WalletUtil'
 import { BIP122_SIGNING_METHODS } from '@/data/Bip122Data'
 import { EIP7715_METHOD } from '@/data/EIP7715Data'
 import { refreshSessionsList } from '@/pages/wc'
+import WalletCheckoutUtil from '@/utils/WalletCheckoutUtil'
+import WalletCheckoutCtrl from '@/store/WalletCheckoutCtrl'
+import { CheckoutErrorCode } from '@/types/wallet_checkout'
+import { createCheckoutError } from '@/types/wallet_checkout'
 
 export default function useWalletConnectEventsManager(initialized: boolean) {
   /******************************************************************************
@@ -92,6 +96,25 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
           }
           return ModalStore.open('SessionSendCallsModal', { requestEvent, requestSession })
         }
+
+        case EIP155_SIGNING_METHODS.WALLET_CHECKOUT:
+          try {
+            await WalletCheckoutCtrl.actions.prepareFeasiblePayments(request.params[0])
+          } catch (error) {
+            // If it's not a CheckoutError, create one
+            if (!(error && typeof error === 'object' && 'code' in error)) {
+              error = createCheckoutError(
+                CheckoutErrorCode.INVALID_CHECKOUT_REQUEST,
+                `Unexpected error: ${error instanceof Error ? error.message : String(error)}`
+              )
+            }
+
+            return await walletkit.respondSessionRequest({
+              topic,
+              response: WalletCheckoutUtil.formatCheckoutErrorResponse(id, error)
+            })
+          }
+          return ModalStore.open('SessionCheckoutModal', { requestEvent, requestSession })
 
         case COSMOS_SIGNING_METHODS.COSMOS_SIGN_DIRECT:
         case COSMOS_SIGNING_METHODS.COSMOS_SIGN_AMINO:

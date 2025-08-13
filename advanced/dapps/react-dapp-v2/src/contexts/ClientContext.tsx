@@ -318,8 +318,9 @@ export function ClientContextProvider({
         icons: [],
       },
       showWallets: true,
-      enableEIP6963: false, // Disable 6963 by default
-      enableInjected: false, // Disable injected by default
+      enableNetworkSwitch: true,
+      enableEIP6963: true, // Disable 6963 by default
+      enableInjected: true, // Disable injected by default
       enableCoinbase: true, // Default to true
       enableWalletConnect: true, // Default to true,
       features: {

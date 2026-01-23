@@ -160,6 +160,7 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
 
         case TRON_SIGNING_METHODS.TRON_SIGN_MESSAGE:
         case TRON_SIGNING_METHODS.TRON_SIGN_TRANSACTION:
+        case TRON_SIGNING_METHODS.TRON_SEND_TRANSACTION:
           return ModalStore.open('SessionSignTronModal', { requestEvent, requestSession })
         case TEZOS_SIGNING_METHODS.TEZOS_GET_ACCOUNTS:
         case TEZOS_SIGNING_METHODS.TEZOS_SEND:
@@ -194,6 +195,8 @@ export default function useWalletConnectEventsManager(initialized: boolean) {
             requestEvent,
             requestSession
           })
+        case SUI_SIGNING_METHODS.SUI_GET_ACCOUNTS:
+          return ModalStore.open('SessionGetSuiAccountsModal', { requestEvent, requestSession })
         case STACKS_SIGNING_METHODS.STACKS_SEND_TRANSFER:
           return ModalStore.open('SessionSendStacksTransferModal', { requestEvent, requestSession })
         case STACKS_SIGNING_METHODS.STACKS_SIGN_MESSAGE:

@@ -58,9 +58,10 @@ import { SUI_CHAINS, SUI_EVENTS, SUI_SIGNING_METHODS } from '@/data/SuiData'
 import { suiAddresses } from '@/utils/SuiWalletUtil'
 import { STACKS_CHAINS, STACKS_EVENTS, STACKS_SIGNING_METHODS } from '@/data/StacksData'
 import { stacksAddresses, stacksWallet } from '@/utils/StacksWalletUtil'
+import { getWallet as getSuiWallet } from '@/utils/SuiWalletUtil'
 import StacksLib from '@/lib/StacksLib'
 import { TON_CHAINS, TON_SIGNING_METHODS } from '@/data/TonData'
-import { tonAddresses } from '@/utils/TonWalletUtil'
+import { getWallet, tonAddresses, tonWallets } from '@/utils/TonWalletUtil'
 import { prepareAuthenticationMessages, signAuthenticationMessages } from '@/utils/AuthUtil'
 import { AuthenticationMessage } from '@/types/auth'
 
@@ -229,9 +230,8 @@ export default function SessionProposalModal() {
         chains: tronChains,
         methods: tronMethods,
         events: [],
-        accounts: tronChains
-          .map(chain => tronAddresses.map(address => `${chain}:${address}`))
-          .flat()
+        accounts:
+          tronChains.map(chain => tronAddresses?.map(address => `${chain}:${address}`)).flat() || []
       },
       bip122: {
         chains: bip122Chains,
@@ -403,6 +403,12 @@ export default function SessionProposalModal() {
         let sessionProperties = {
           capabilities: JSON.stringify(capabilities)
         } as any
+
+        // Add TRON-specific properties if TRON namespace exists
+        if (namespaces.tron) {
+          sessionProperties['tron_method_version'] = 'v1'
+        }
+
         if (namespaces.bip122) {
           const bip122Chain = namespaces.bip122.chains?.[0]!
           sessionProperties.bip122_getAccountAddresses = JSON.stringify({
@@ -412,6 +418,27 @@ export default function SessionProposalModal() {
             )
           })
         }
+
+        if (namespaces.sui) {
+          const suiWallet = await getSuiWallet()
+          const accounts = suiWallet.getAccounts()
+          sessionProperties.sui_getAccounts = JSON.stringify(accounts)
+        }
+
+        if (namespaces.stacks) {
+          const accounts = stacksWallet.getAccounts()
+          sessionProperties.stacks_getAddresses = JSON.stringify([
+            accounts.mainnet,
+            accounts.testnet
+          ])
+        }
+
+        if (namespaces.ton) {
+          const tonWallet = await getWallet();
+          sessionProperties.ton_getPublicKey = tonWallet.getPublicKey();
+          sessionProperties.ton_getStateInit = tonWallet.getStateInit();
+        }
+
         console.log('sessionProperties', sessionProperties)
 
         const signedAuths = await signAuthenticationMessages(authenticationMessagesToSign)
@@ -420,7 +447,9 @@ export default function SessionProposalModal() {
           id: proposal.id,
           namespaces,
           sessionProperties,
-          proposalRequestsResponses: signedAuths
+          proposalRequestsResponses: {
+            authentication: signedAuths
+          }
         })
         SettingsStore.setSessions(Object.values(walletkit.getActiveSessions()))
       }

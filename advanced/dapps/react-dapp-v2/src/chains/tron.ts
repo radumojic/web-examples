@@ -10,7 +10,7 @@ export const TronChainData: ChainsMap = {
   },
   "0xcd8690dc": {
     id: "tron:0xcd8690dc",
-    name: "Tron Testnet",
+    name: "Tron Testnet (Nile)",
     rpc: [],
     slip44: 195,
     testnet: true,
@@ -20,12 +20,12 @@ export const TronChainData: ChainsMap = {
 export const TronMetadata: NamespaceMetadata = {
   // Tron Mainnet
   "0x2b6653dc": {
-    logo: "https://tronscan.io/static/media/TRON.4a760cebd163969b2ee874abf2415e9a.svg",
+    logo: "/assets/tron.png",
     rgb: "183, 62, 49",
   },
-  // Tron TestNet
+  // Tron Testnet (Nile)
   "0xcd8690dc": {
-    logo: "https://tronscan.io/static/media/TRON.4a760cebd163969b2ee874abf2415e9a.svg",
+    logo: "assets/tron.png",
     rgb: "183, 62, 49",
   },
 };

@@ -31,6 +31,8 @@ import SessionSignStacksMessageModal from '@/views/SessionSignStacksMessageModal
 import SessionGetSuiGetAcccountsModal from '@/views/SessionGetSuiGetAcccountsModal'
 import SessionTonSendMessageModal from '@/views/SessionSignTonTransactionModal'
 import SessionTonSignDataModal from '@/views/SessionSignTonPersonalMessageModal'
+import SessionSignCantonModal from '@/views/SessionSignCantonModal'
+import PaymentOptionsModal from '@/views/PaymentOptionsModal'
 
 export default function Modal() {
   const { open, view } = useSnapshot(ModalStore.state)
@@ -101,6 +103,10 @@ export default function Modal() {
         return <SessionTonSendMessageModal />
       case 'SessionTonSignDataModal':
         return <SessionTonSignDataModal />
+      case 'SessionSignCantonModal':
+        return <SessionSignCantonModal />
+      case 'PaymentOptionsModal':
+        return <PaymentOptionsModal />
       default:
         return null
     }
@@ -111,7 +117,11 @@ export default function Modal() {
       blur
       onClose={onClose}
       open={open}
-      style={{ border: '1px solid rgba(139, 139, 139, 0.4)' }}
+      css={{
+        border: '1px solid rgba(139, 139, 139, 0.4)',
+        maxWidth: '420px',
+        margin: '0 auto'
+      }}
     >
       {componentView}
     </NextModal>

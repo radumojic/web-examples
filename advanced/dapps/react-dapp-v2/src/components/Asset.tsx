@@ -15,6 +15,9 @@ const btcLogo = getChainMetadata(
 ).logo;
 const suiLogo = getChainMetadata("sui:mainnet").logo;
 const tronLogo = getChainMetadata("tron:0x2b6653dc").logo;
+const celoLogo = getChainMetadata("eip155:42220").logo;
+const bnbLogo = getChainMetadata("eip155:56").logo;
+const monadLogo = getChainMetadata("eip155:143").logo;
 const SAsset = styled.div`
   width: 100%;
   padding: 20px;
@@ -38,7 +41,7 @@ const SAssetBalance = styled.div`
   display: flex;
 `;
 
-function getAssetIcon(asset: AssetData): JSX.Element {
+function getAssetIcon(asset: AssetData): React.JSX.Element {
   if (!!asset.contractAddress) {
     const src = `https://raw.githubusercontent.com/TrustWallet/tokens/master/tokens/${asset.contractAddress.toLowerCase()}.png`;
     return <Icon src={src} fallback={"/assets/erc20.svg"} />;
@@ -58,6 +61,12 @@ function getAssetIcon(asset: AssetData): JSX.Element {
       return <Icon src={suiLogo} />;
     case "trx":
       return <Icon src={tronLogo} />;
+    case "celo":
+      return <Icon src={celoLogo} />;
+    case "bnb":
+      return <Icon src={bnbLogo} />;
+    case "mon":
+      return <Icon src={monadLogo} />;
     default:
       return <Icon src={"/assets/eth20.svg"} />;
   }
@@ -70,7 +79,7 @@ interface AssetProps {
 const Asset = (props: AssetProps) => {
   const { asset } = props;
   return (
-    <SAsset {...props}>
+    <SAsset>
       <SAssetLeft>
         {getAssetIcon(asset)}
         <SAssetName>{asset.name}</SAssetName>

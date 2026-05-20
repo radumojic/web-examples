@@ -1,21 +1,28 @@
-import { WalletKit, IWalletKit } from '@reown/walletkit'
+import { WalletKit, IWalletKit, isPaymentLink } from '@reown/walletkit'
 import { Core } from '@walletconnect/core'
+
+export { isPaymentLink }
 export let walletkit: IWalletKit
 
 export async function createWalletKit(relayerRegionURL: string) {
-  // Validate required environment variables
   if (!process.env.NEXT_PUBLIC_PROJECT_ID) {
     throw new Error(
       'NEXT_PUBLIC_PROJECT_ID is not set. Please create a .env.local file with your WalletConnect project ID. ' +
-      'Get one at https://cloud.walletconnect.com'
+        'Get one at https://cloud.walletconnect.com'
     )
   }
 
   const core = new Core({
     projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
     relayUrl: relayerRegionURL || process.env.NEXT_PUBLIC_RELAY_URL,
-    logger: 'trace'
+    logger: 'error'
   })
+
+  const apiKey = process.env.NEXT_PUBLIC_PAY_API_KEY
+  const baseUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/pay`
+    : 'https://api.pay.walletconnect.com'
+
   walletkit = await WalletKit.init({
     core,
     metadata: {
@@ -26,7 +33,14 @@ export async function createWalletKit(relayerRegionURL: string) {
     },
     signConfig: {
       disableRequestQueue: true
-    }
+    },
+    ...(apiKey ? {
+      payConfig: {
+        appId: process.env.NEXT_PUBLIC_PROJECT_ID,
+        apiKey,
+        baseUrl,
+      }
+    } : {})
   })
 
   try {
@@ -40,7 +54,6 @@ export async function createWalletKit(relayerRegionURL: string) {
 
 export async function updateSignClientChainId(chainId: string, address: string) {
   console.log('chainId', chainId, address)
-  // get most recent session
   const sessions = walletkit.getActiveSessions()
   if (!sessions) return
   const namespace = chainId.split(':')[0]

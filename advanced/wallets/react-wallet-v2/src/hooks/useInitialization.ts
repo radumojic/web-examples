@@ -16,6 +16,7 @@ import { createOrRestoreBip122Wallet } from '@/utils/Bip122WalletUtil'
 import { createOrRestoreSuiWallet } from '@/utils/SuiWalletUtil'
 import { createOrRestoreStacksWallet } from '@/utils/StacksWalletUtil'
 import { createOrRestoreTonWallet } from '@/utils/TonWalletUtil'
+import { createOrRestoreCantonWallet } from '@/utils/CantonWalletUtil'
 
 export default function useInitialization() {
   const [initialized, setInitialized] = useState(false)
@@ -99,6 +100,10 @@ export default function useInitialization() {
             }),
             createOrRestoreTonWallet().then(({ tonAddresses }) => {
               SettingsStore.setTonAddress(tonAddresses[0])
+            }),
+            Promise.resolve().then(() => {
+              const { cantonAddresses } = createOrRestoreCantonWallet()
+              SettingsStore.setCantonAddress(cantonAddresses[0])
             })
           ])
           console.log('All chain wallets initialized')
@@ -112,6 +117,14 @@ export default function useInitialization() {
       console.log('Creating WalletConnect client...')
       await createWalletKit(relayerRegionURL)
       console.log('WalletConnect client created successfully')
+
+      if (walletkit?.pay) {
+        console.log('Pay SDK initialized via WalletKit')
+      } else if (process.env.NEXT_PUBLIC_PAY_API_KEY) {
+        console.warn('Pay SDK not available on WalletKit instance')
+      } else {
+        console.warn('Pay SDK not initialized: Missing NEXT_PUBLIC_PAY_API_KEY')
+      }
 
       setInitialized(true)
       console.log('Wallet initialization complete')

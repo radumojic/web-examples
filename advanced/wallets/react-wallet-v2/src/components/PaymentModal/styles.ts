@@ -1,0 +1,1 @@
+/* Styles are now inline in the respective components */
